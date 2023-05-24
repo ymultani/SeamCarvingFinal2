@@ -8,6 +8,8 @@ import java.util.Arrays;
 public class SeamCarving {
     Pixel[][] pixels;
 
+    int[][] colors;
+
     int[][] energy;
     int[][] diffs;
     int[][] costs;
@@ -19,6 +21,7 @@ public class SeamCarving {
         diffs = new int[image.getHeight()][image.getWidth()];
         costs = new int[image.getHeight()][image.getWidth()];
         energy = new int[image.getHeight()][image.getWidth()];
+        colors = new int[image.getHeight()][image.getWidth()];
     }
 
     public void setPixels(){
@@ -29,6 +32,7 @@ public class SeamCarving {
                 int green = (color & 0xff00) >> 8;
                 int red = (color & 0xff0000) >> 16;
                 pixels[row][col] = new Pixel(red,green,blue);
+                colors[row][col] = color;
                 energy[row][col] = pixels[row][col].getSaturation();
             }
         }
@@ -106,13 +110,20 @@ public class SeamCarving {
         for(int i = 0; i < costs.length; i++){
             costs[i] = diffs[i].clone();
         }
-        for(int row = costs.length -2; row > 0; row--){
-            for(int col = 0; col < costs[0].length-1; col++){
+//        System.out.println(Arrays.toString(costs[0]));
+//        System.out.println(Arrays.toString(diffs[0]));
+        for(int row = 1; row < costs.length; row++){
+            //System.out.println("row: " + row);
+            for(int col = 0; col < costs[0].length; col++){
+                //System.out.println("column " + col);
                 if(col == 0) {
-                    costs[row][col] += Math.min(costs[row + 1][col], costs[row + 1][col + 1]);
+                    costs[row][col] += Math.min(costs[row -1][col], costs[row - 1][col + 1]);
+                }
+                else if(col == costs[0].length -1){
+                    costs[row][col] += Math.min(costs[row-1][col], costs[row-1][col-1]);
                 }
                 else {
-                    costs[row][col] += Math.min(costs[row + 1][col - 1], Math.min(costs[row + 1][col], costs[row + 1][col + 1]));
+                    costs[row][col] += Math.min(costs[row - 1][col - 1], Math.min(costs[row - 1][col], costs[row - 1][col + 1]));
                 }
             }
         }
@@ -120,15 +131,16 @@ public class SeamCarving {
 
     public boolean[][] setPath(BufferedImage picture){
         boolean[][] path = new boolean[picture.getHeight()][picture.getWidth()];
+        //System.out.println("Path: " + getXMin(costs[costs.length-1], 0, costs[0].length));
         path[costs.length-1][getXMin(costs[costs.length-1], 0, costs[0].length)] = true;
-        int col = getXMin(costs[costs.length-1], 0, costs[0].length);
-        int previousCol = col;
-        for(int row = costs.length-2; row > 0 ; row--){
-
+        int col = getXMin(costs[costs.length-1], 0, costs[costs.length-1].length);
+        //int previousCol = col;
+        for(int row = costs.length-2; row >= 0 ; row--){
             //System.out.println("row: " + row);
-            int start = (previousCol == 0) ? col: col-1;
+            int start = (col == 0) ? col: col-1;
             int end = (col == costs[0].length-1) ? col + 1 : col + 2;
             path[row][getXMin(costs[row+1], start, end)] = true;
+            col = getXMin(costs[row+1], start, end);
         }
         return path;
     }
@@ -137,6 +149,9 @@ public class SeamCarving {
         //System.out.println("Length" + costs.length);
         int min = Integer.MAX_VALUE;
         int index = -1;
+        if(row.length == 1){
+            return 0;
+        }
         for(int i = start; i < end; i++){
             //System.out.println(i);
             if(row[i] < min){
@@ -149,31 +164,26 @@ public class SeamCarving {
 
     public BufferedImage removeSeam(boolean[][] path){
         BufferedImage copy = new BufferedImage(image.getWidth()-1, image.getHeight(), BufferedImage.TYPE_INT_RGB);
+        //System.out.println(Arrays.deepToString(colors));
         for(int row = 0; row < copy.getHeight(); row++){
-            for(int col = 0; col < copy.getWidth()-2; col++){
-                if(!path[row][col]){
-                    int red = pixels[row][col].getrVal();
-                    int green = pixels[row][col].getgVal();
-                    int blue = pixels[row][col].getbVal();
-                    int color = (red << 16) | (green << 8) | blue;
-                    copy.setRGB(col,row, color);
+            int j = 0;
+            for(int col = 0; col < copy.getWidth(); col++){
+                //System.out.println(colors[row][col]);
+                //System.out.println(new Color(colors[row][col]));
+                if(path[row][col]){
+                    j++;
                 }
-                else{
-                    int red = pixels[row][col+1].getrVal();
-                    int green = pixels[row][col+1].getgVal();
-                    int blue = pixels[row][col+1].getbVal();
-                    int color = (red << 16) | (green << 8) | blue;
-                    copy.setRGB(col,row, color);
-                }
+                copy.setRGB(col,row, colors[row][j]);
+                j++;
             }
         }
         return copy;
     }
     public BufferedImage showSeam(boolean[][] path) throws IOException {
-        BufferedImage copy = ImageIO.read(new File("/Users/yuvro/Downloads/dali2.jpg"));
+        BufferedImage copy = image;
         for(int row = 0; row < copy.getHeight(); row++){
             for(int col = 0; col < copy.getWidth(); col++){
-                if(!path[row][col]){
+                if(path[row][col]){
                     copy.setRGB(col,row, 255);
                 }
             }
